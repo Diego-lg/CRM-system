@@ -14,8 +14,12 @@ import {
   Zap,
   Database,
   Cloud,
+  Sun,
+  Moon,
+  LogOut,
 } from "lucide-react";
 import useCRM from "../store/useCRM";
+import { useTheme } from "../context/ThemeContext";
 import { isSupabaseConfigured } from "../lib/supabase";
 import clsx from "clsx";
 
@@ -34,6 +38,15 @@ export default function Sidebar({ open, setOpen }) {
   const stores = useCRM((s) => s.stores);
   const currentStoreId = useCRM((s) => s.currentStoreId);
   const setCurrentStore = useCRM((s) => s.setCurrentStore);
+  const user = useCRM((s) => s.user);
+  const logout = useCRM((s) => s.logout);
+  const { isDarkMode, toggleTheme } = useTheme();
+
+  const handleLogout = () => {
+    if (window.confirm("Are you sure you want to log out?")) {
+      logout();
+    }
+  };
 
   return (
     <aside
@@ -126,6 +139,22 @@ export default function Sidebar({ open, setOpen }) {
         ))}
       </nav>
 
+      {/* Dark Mode Toggle */}
+      {open && (
+        <div className="px-4 py-2 border-t border-gray-700">
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-3 px-4 py-2.5 w-full rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition-all"
+            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+            <span className="text-sm font-medium">
+              {isDarkMode ? "Light Mode" : "Dark Mode"}
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Bottom toggle */}
       {!open && (
         <button
@@ -160,15 +189,39 @@ export default function Sidebar({ open, setOpen }) {
       {/* User Profile */}
       {open && (
         <div className="px-4 py-3 border-t border-gray-700 flex items-center gap-3">
-          <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 text-white">
-            AR
-          </div>
-          <div className="min-w-0">
+          {user?.avatar ? (
+            <img
+              src={user.avatar}
+              alt={user.name}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+            />
+          ) : (
+            <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 text-white">
+              {user?.name
+                ? user.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2)
+                : "AR"}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-white truncate">
-              Alex Rivera
+              {user?.name || "Guest User"}
             </p>
-            <p className="text-xs text-gray-400 truncate">Admin</p>
+            <p className="text-xs text-gray-400 truncate">
+              {user?.role || "User"}
+            </p>
           </div>
+          <button
+            onClick={handleLogout}
+            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+            title="Log out"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       )}
     </aside>

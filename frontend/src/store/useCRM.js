@@ -8,12 +8,33 @@ import {
   settingsService,
   analyticsService,
 } from "../lib/db";
-import { isSupabaseConfigured } from "../lib/supabase";
+import {
+  isSupabaseConfigured,
+  signOut as supabaseSignOut,
+  DEMO_MODE,
+  getCurrentUser,
+} from "../lib/supabase";
 import { SEED_DATA } from "../data/seed";
+
+const DEMO_USER_KEY = "crm_demo_user";
+
+// Helper to get demo user from localStorage
+const getDemoUser = () => {
+  try {
+    const stored = localStorage.getItem(DEMO_USER_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error("Failed to parse demo user from localStorage:", e);
+  }
+  return null;
+};
 
 const useCRM = create((set, get) => ({
   // State
   mode: "demo", // 'demo' = use seed data, 'production' = use real database
+  user: getDemoUser(), // Initialize user from localStorage
   contacts: SEED_DATA.contacts,
   companies: SEED_DATA.companies,
   deals: SEED_DATA.deals,
@@ -25,6 +46,55 @@ const useCRM = create((set, get) => ({
   currentStoreId: null,
   loading: true,
   error: null,
+
+  // ========== AUTHENTICATION ==========
+  // Computed: is user authenticated
+  get isAuthenticated() {
+    return !!get().user;
+  },
+
+  // Set user and persist to localStorage
+  setUser: (user) => {
+    if (user) {
+      // Store in localStorage for demo mode persistence
+      try {
+        localStorage.setItem(DEMO_USER_KEY, JSON.stringify(user));
+      } catch (e) {
+        console.error("Failed to persist user to localStorage:", e);
+      }
+      set({ user });
+    } else {
+      // Clear localStorage if user is null
+      try {
+        localStorage.removeItem(DEMO_USER_KEY);
+      } catch (e) {
+        console.error("Failed to clear user from localStorage:", e);
+      }
+      set({ user: null });
+    }
+  },
+
+  // Logout - clear user state and session
+  logout: async () => {
+    // Clear localStorage demo user
+    try {
+      localStorage.removeItem(DEMO_USER_KEY);
+    } catch (e) {
+      console.error("Failed to clear demo user from localStorage:", e);
+    }
+
+    // Clear user state
+    set({ user: null });
+
+    // Call Supabase signOut if in production mode
+    if (!DEMO_MODE && isSupabaseConfigured()) {
+      try {
+        await supabaseSignOut();
+      } catch (e) {
+        console.error("Failed to sign out from Supabase:", e);
+      }
+    }
+  },
 
   // Mode control
   setMode: (mode) => {
@@ -53,6 +123,17 @@ const useCRM = create((set, get) => ({
   initialize: async () => {
     set({ loading: true, error: null, mode: "production" });
     try {
+      // Check if user is already authenticated with Supabase
+      if (isSupabaseConfigured()) {
+        const { user, profile, error: authError } = await getCurrentUser();
+        if (user && !authError) {
+          // User is authenticated, set user in state
+          set({
+            user: profile || { id: user.id, email: user.email, ...profile },
+          });
+        }
+      }
+
       const [contacts, companies, deals, stores, activities, settings] =
         await Promise.all([
           contactsService.getAll(),

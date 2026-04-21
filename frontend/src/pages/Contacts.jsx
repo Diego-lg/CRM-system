@@ -10,6 +10,7 @@ import {
   Edit2,
   Trash2,
   X,
+  Users,
 } from "lucide-react";
 import Modal from "../components/Modal";
 import useCRM from "../store/useCRM";

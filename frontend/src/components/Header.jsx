@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Menu, Search, Bell, Plus } from "lucide-react";
+import { Menu, Search, Bell, Plus, LogOut, Sun, Moon } from "lucide-react";
 import useCRM from "../store/useCRM";
+import { useTheme } from "../context/ThemeContext";
 
 const PAGE_NAMES = {
   "/dashboard": "Dashboard",
@@ -24,6 +25,15 @@ export default function Header({ sidebarOpen, setSidebarOpen }) {
   const activities = useCRM((s) => s.activities);
   const mode = useCRM((s) => s.mode);
   const setMode = useCRM((s) => s.setMode);
+  const user = useCRM((s) => s.user);
+  const logout = useCRM((s) => s.logout);
+  const { isDarkMode, toggleTheme } = useTheme();
+
+  const handleLogout = () => {
+    if (window.confirm("Are you sure you want to log out?")) {
+      logout();
+    }
+  };
 
   const title = PAGE_NAMES[location.pathname] || "CRM-system";
 
@@ -125,6 +135,15 @@ export default function Header({ sidebarOpen, setSidebarOpen }) {
         )}
       </button>
 
+      {/* Dark Mode Toggle */}
+      <button
+        onClick={toggleTheme}
+        className="text-gray-400 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-100"
+        title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+      >
+        {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+      </button>
+
       {/* Mode Toggle */}
       <button
         onClick={() => setMode(mode === "demo" ? "production" : "demo")}
@@ -141,6 +160,45 @@ export default function Header({ sidebarOpen, setSidebarOpen }) {
           className={`w-2 h-2 rounded-full ${mode === "demo" ? "bg-amber-500" : "bg-green-500"}`}
         />
         {mode === "demo" ? "DEMO" : "LIVE"}
+      </button>
+
+      {/* User Display */}
+      {user && (
+        <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
+          {user.avatar ? (
+            <img
+              src={user.avatar}
+              alt={user.name}
+              className="w-8 h-8 rounded-full"
+            />
+          ) : (
+            <div className="w-8 h-8 bg-gray-900 rounded-full flex items-center justify-center text-xs font-bold text-white">
+              {user.name
+                ? user.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2)
+                : "GU"}
+            </div>
+          )}
+          <div className="hidden md:block">
+            <p className="text-sm font-medium text-gray-900">
+              {user.name || "Guest"}
+            </p>
+            <p className="text-xs text-gray-500">{user.role || "User"}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Logout Button */}
+      <button
+        onClick={handleLogout}
+        className="text-gray-400 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-100"
+        title="Log out"
+      >
+        <LogOut size={20} />
       </button>
 
       {/* Quick Add */}

@@ -363,3 +363,128 @@ ALTER PUBLICATION supabase_realtime ADD TABLE companies;
 -- FINISH
 -- ============================================
 SELECT 'CRM-system Database Schema Created Successfully!' as status;
+
+-- ============================================
+-- PHASE 1: AUTHENTICATION & USER MANAGEMENT
+-- ============================================
+-- These tables extend Supabase auth.users for the CRM system
+
+-- ============================================
+-- PROFILES TABLE
+-- Extends auth.users with CRM-specific profile data
+-- ============================================
+CREATE TABLE IF NOT EXISTS profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    full_name TEXT,
+    avatar TEXT,
+    role TEXT DEFAULT 'sales_rep' CHECK (role IN ('admin', 'manager', 'sales_rep')),
+    phone TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- API KEYS TABLE
+-- Personal API key management for users
+-- ============================================
+CREATE TABLE IF NOT EXISTS api_keys (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    key_hash TEXT NOT NULL,
+    last_used TIMESTAMP WITH TIME ZONE,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- EMAIL TEMPLATES TABLE
+-- User-defined email templates for CRM communications
+-- ============================================
+CREATE TABLE IF NOT EXISTS email_templates (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_by UUID REFERENCES auth.users(id),
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Insert default email templates
+INSERT INTO email_templates (name, subject, body, is_default) VALUES
+    ('Welcome Email', 'Welcome to CRM-system', 'Hello {{name}}, welcome to our CRM!', TRUE),
+    ('Deal Won', 'Congratulations! Deal Won', 'Dear {{name}}, your deal {{deal_title}} has been won!', FALSE)
+ON CONFLICT DO NOTHING;
+
+-- ============================================
+-- ROW LEVEL SECURITY (RLS) FOR AUTH TABLES
+-- ============================================
+
+-- Enable RLS on auth tables
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- PROFILES RLS POLICIES
+-- Users can view and update their own profile
+-- ============================================
+CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
+-- ============================================
+-- API KEYS RLS POLICIES
+-- Users can only manage their own API keys
+-- ============================================
+CREATE POLICY "Users can view own API keys" ON api_keys FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own API keys" ON api_keys FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own API keys" ON api_keys FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own API keys" ON api_keys FOR DELETE USING (auth.uid() = user_id);
+
+-- ============================================
+-- EMAIL TEMPLATES RLS POLICIES
+-- Anyone can view templates, only admins can manage them
+-- ============================================
+CREATE POLICY "Anyone can view email templates" ON email_templates FOR SELECT USING (true);
+CREATE POLICY "Admins can manage email templates" ON email_templates FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "Admins can update email templates" ON email_templates FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "Admins can delete email templates" ON email_templates FOR DELETE USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- ============================================
+-- INDEXES FOR AUTH TABLES
+-- ============================================
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);
+CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_templates_created_by ON email_templates(created_by);
+CREATE INDEX IF NOT EXISTS idx_email_templates_is_default ON email_templates(is_default);
+
+-- ============================================
+-- FUNCTION TO AUTO-CREATE PROFILE ON USER SIGNUP
+-- ============================================
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+    INSERT INTO public.profiles (id, full_name, avatar)
+    VALUES (
+        new.id,
+        COALESCE(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', ''),
+        COALESCE(new.raw_user_meta_data->>'avatar', '')
+    );
+    RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to auto-create profile when user signs up
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
