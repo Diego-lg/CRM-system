@@ -1,6 +1,7 @@
 # Phase 1: Authentication & Core UX
 
 ## Overview
+
 This phase adds user authentication, role-based access control, session management, dark mode toggle, and keyboard shortcuts to improve security and user experience.
 
 ---
@@ -10,11 +11,14 @@ This phase adds user authentication, role-based access control, session manageme
 ### 1.1 Supabase Auth Setup
 
 #### Modify `frontend/src/lib/supabase.js`
-```javascript
-import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
+```javascript
+import { createClient } from "@supabase/supabase-js";
+
+const SUPABASE_URL =
+  import.meta.env.VITE_SUPABASE_URL || "https://your-project.supabase.co";
+const SUPABASE_ANON_KEY =
+  import.meta.env.VITE_SUPABASE_ANON_KEY || "your-anon-key";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -47,7 +51,10 @@ export const signOut = async () => {
 };
 
 export const getCurrentUser = async () => {
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
   return { user, error };
 };
 ```
@@ -126,20 +133,21 @@ CREATE POLICY "Admins can manage email templates" ON email_templates FOR ALL USI
 
 ### 2.1 Role Definitions
 
-| Role | Permissions |
-|------|-------------|
-| **Admin** | Full access, manage users, manage settings, view all data |
-| **Manager** | View all data, manage team, create reports |
-| **Sales Rep** | View own data, manage own contacts/deals/activities |
+| Role          | Permissions                                               |
+| ------------- | --------------------------------------------------------- |
+| **Admin**     | Full access, manage users, manage settings, view all data |
+| **Manager**   | View all data, manage team, create reports                |
+| **Sales Rep** | View own data, manage own contacts/deals/activities       |
 
 ### 2.2 Permission Helper
 
 #### Create `frontend/src/lib/permissions.js`
+
 ```javascript
 export const ROLES = {
-  ADMIN: 'admin',
-  MANAGER: 'manager',
-  SALES_REP: 'sales_rep',
+  ADMIN: "admin",
+  MANAGER: "manager",
+  SALES_REP: "sales_rep",
 };
 
 export const PERMISSIONS = {
@@ -168,13 +176,13 @@ export const PERMISSIONS = {
   [ROLES.SALES_REP]: {
     users: { read: false, write: false, delete: false },
     settings: { read: true, write: false },
-    contacts: { read: 'own', write: true, delete: 'own' },
-    companies: { read: 'own', write: true, delete: 'own' },
-    deals: { read: 'own', write: true, delete: 'own' },
-    activities: { read: true, write: true, delete: 'own' },
+    contacts: { read: "own", write: true, delete: "own" },
+    companies: { read: "own", write: true, delete: "own" },
+    deals: { read: "own", write: true, delete: "own" },
+    activities: { read: true, write: true, delete: "own" },
     stores: { read: true, write: false, delete: false },
-    reports: { read: 'own', write: false },
-    exports: { read: 'own', write: false },
+    reports: { read: "own", write: false },
+    exports: { read: "own", write: false },
   },
 };
 
@@ -202,15 +210,16 @@ export function canAccessRecord(role, resource, record, userId) {
 ## 3. Login Page Component
 
 ### Create `frontend/src/pages/Login.jsx`
+
 ```jsx
-import React, { useState } from 'react';
-import { signIn, signUp } from '../lib/supabase';
-import useCRM from '../store/useCRM';
+import React, { useState } from "react";
+import { signIn, signUp } from "../lib/supabase";
+import useCRM from "../store/useCRM";
 
 export default function Login() {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const initialize = useCRM((s) => s.initialize);
@@ -220,7 +229,7 @@ export default function Login() {
     setLoading(true);
     setError(null);
 
-    const { data, error: authError } = isLogin 
+    const { data, error: authError } = isLogin
       ? await signIn(email, password)
       : await signUp(email, password);
 
@@ -241,7 +250,7 @@ export default function Login() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">CRM-system</h1>
           <p className="text-gray-500 mt-2">
-            {isLogin ? 'Sign in to your account' : 'Create a new account'}
+            {isLogin ? "Sign in to your account" : "Create a new account"}
           </p>
         </div>
 
@@ -283,7 +292,7 @@ export default function Login() {
               disabled={loading}
               className="btn-primary w-full"
             >
-              {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Sign Up'}
+              {loading ? "Processing..." : isLogin ? "Sign In" : "Sign Up"}
             </button>
           </form>
 
@@ -292,9 +301,9 @@ export default function Login() {
               onClick={() => setIsLogin(!isLogin)}
               className="text-sm text-gray-500 hover:text-gray-900"
             >
-              {isLogin 
-                ? "Don't have an account? Sign Up" 
-                : 'Already have an account? Sign In'}
+              {isLogin
+                ? "Don't have an account? Sign Up"
+                : "Already have an account? Sign In"}
             </button>
           </div>
         </div>
@@ -313,6 +322,7 @@ export default function Login() {
 ## 4. Protected Routes
 
 ### Modify `frontend/src/App.jsx`
+
 ```jsx
 import React, { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
@@ -394,21 +404,24 @@ export default function App() {
   return (
     <Routes>
       {/* Public routes */}
-      <Route 
-        path="/login" 
+      <Route
+        path="/login"
         element={
           <PublicRoute>
             <Login />
           </PublicRoute>
-        } 
+        }
       />
 
       {/* Protected routes */}
-      <Route path="/" element={
-        <ProtectedRoute>
-          <Layout />
-        </ProtectedRoute>
-      }>
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="contacts" element={<Contacts />} />
@@ -417,11 +430,14 @@ export default function App() {
         <Route path="stores" element={<Stores />} />
         <Route path="activities" element={<Activities />} />
         <Route path="analytics" element={<Analytics />} />
-        <Route path="settings" element={
-          <ProtectedRoute requiredRole="settings">
-            <Settings />
-          </ProtectedRoute>
-        } />
+        <Route
+          path="settings"
+          element={
+            <ProtectedRoute requiredRole="settings">
+              <Settings />
+            </ProtectedRoute>
+          }
+        />
       </Route>
     </Routes>
   );
@@ -433,7 +449,9 @@ export default function App() {
 ## 5. Store Updates for Auth
 
 ### Modify `frontend/src/store/useCRM.js`
+
 Add these state and actions:
+
 ```javascript
 const useCRM = create((set, get) => ({
   // ... existing state ...
@@ -443,10 +461,11 @@ const useCRM = create((set, get) => ({
   isAuthenticated: false,
 
   // Set user from Supabase auth
-  setUser: (user) => set({ 
-    user, 
-    isAuthenticated: !!user 
-  }),
+  setUser: (user) =>
+    set({
+      user,
+      isAuthenticated: !!user,
+    }),
 
   // Logout
   logout: async () => {
@@ -465,23 +484,24 @@ const useCRM = create((set, get) => ({
 ### 6.1 Add Theme Context
 
 Create `frontend/src/context/ThemeContext.jsx`:
+
 ```jsx
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
   const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
+    const saved = localStorage.getItem("darkMode");
     return saved ? JSON.parse(saved) : false;
   });
 
   useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+    localStorage.setItem("darkMode", JSON.stringify(darkMode));
     if (darkMode) {
-      document.documentElement.classList.add('dark');
+      document.documentElement.classList.add("dark");
     } else {
-      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.remove("dark");
     }
   }, [darkMode]);
 
@@ -500,30 +520,32 @@ export const useTheme = () => useContext(ThemeContext);
 ### 6.2 Update Tailwind Config
 
 #### Modify `frontend/tailwind.config.js`
+
 ```javascript
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{js,jsx}"],
-  darkMode: 'class', // Enable class-based dark mode
+  darkMode: "class", // Enable class-based dark mode
   theme: {
     extend: {
       colors: {
         dark: {
-          bg: '#0f0f0f',
-          card: '#1a1a1a',
-          border: '#2a2a2a',
-          text: '#f5f5f5',
-        }
-      }
+          bg: "#0f0f0f",
+          card: "#1a1a1a",
+          border: "#2a2a2a",
+          text: "#f5f5f5",
+        },
+      },
     },
   },
   plugins: [],
-}
+};
 ```
 
 ### 6.3 Dark Mode CSS
 
 Add to `frontend/src/index.css`:
+
 ```css
 @layer base {
   .dark {
@@ -541,9 +563,10 @@ Add to `frontend/src/index.css`:
 ## 7. Keyboard Shortcuts
 
 ### Create `frontend/src/hooks/useKeyboardShortcuts.js`
+
 ```javascript
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 export function useKeyboardShortcuts() {
   const navigate = useNavigate();
@@ -551,39 +574,39 @@ export function useKeyboardShortcuts() {
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Ignore if typing in input
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
         return;
       }
 
       // Ctrl/Cmd + key shortcuts
       if (e.ctrlKey || e.metaKey) {
         switch (e.key) {
-          case 'd':
+          case "d":
             e.preventDefault();
-            navigate('/dashboard');
+            navigate("/dashboard");
             break;
-          case 'c':
+          case "c":
             e.preventDefault();
-            navigate('/contacts');
+            navigate("/contacts");
             break;
-          case 'o':
+          case "o":
             e.preventDefault();
-            navigate('/companies');
+            navigate("/companies");
             break;
-          case 'p':
+          case "p":
             e.preventDefault();
-            navigate('/deals');
+            navigate("/deals");
             break;
-          case 'a':
+          case "a":
             e.preventDefault();
-            navigate('/activities');
+            navigate("/activities");
             break;
-          case '/':
+          case "/":
             e.preventDefault();
             // Focus search
             document.querySelector('input[placeholder*="Search"]')?.focus();
             break;
-          case 'n':
+          case "n":
             e.preventDefault();
             // Open new modal based on page
             break;
@@ -591,13 +614,13 @@ export function useKeyboardShortcuts() {
       }
 
       // Escape to close modals
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         document.querySelector('[aria-modal="true"]')?.click();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigate]);
 }
 ```
@@ -622,4 +645,7 @@ export function useKeyboardShortcuts() {
 ---
 
 ## Next Phase
+
 See [Phase 2: Data Management & Automation](./Phase-2-Data-Management-Automation.md)
+
+## Status: Completed
