@@ -8,9 +8,14 @@ import {
   Globe,
   Users as UsersIcon,
   DollarSign,
+  Download,
+  Upload,
 } from "lucide-react";
 import Modal from "../components/Modal";
+import ImportModal from "../components/ImportModal";
+import SavedViews from "../components/SavedViews";
 import useCRM from "../store/useCRM";
+import { exportCompanies } from "../lib/csvExport";
 import clsx from "clsx";
 
 const emptyForm = {
@@ -38,8 +43,20 @@ export default function Companies() {
   const [search, setSearch] = useState("");
   const [filterIndustry, setFilterIndustry] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [filters, setFilters] = useState({});
+
+  const handleExport = () => {
+    const dataToExport =
+      filtered && filtered.length > 0 ? filtered : companies || [];
+    exportCompanies(dataToExport, "companies");
+  };
+
+  const handleSaveView = (name, filterValues) => {
+    console.log("Saved view:", name, filterValues);
+  };
 
   const filtered = useMemo(() => {
     return companies.filter((c) => {
@@ -101,9 +118,34 @@ export default function Companies() {
             {filtered.length} companies
           </p>
         </div>
-        <button onClick={openAdd} className="btn-primary">
-          <Plus size={16} /> Add Company
-        </button>
+        <div className="flex items-center gap-3">
+          <SavedViews
+            entityType="companies"
+            currentFilters={{ search, filterIndustry }}
+            onApplyView={(newFilters) => {
+              setSearch(newFilters.search || "");
+              setFilterIndustry(newFilters.filterIndustry || "");
+            }}
+            onSaveView={handleSaveView}
+          />
+          <button
+            onClick={() => setShowImport(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Upload size={16} />
+            Import
+          </button>
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Download size={16} />
+            Export
+          </button>
+          <button onClick={openAdd} className="btn-primary">
+            <Plus size={16} /> Add Company
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -371,6 +413,16 @@ export default function Companies() {
           </div>
         </div>
       </Modal>
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        entityType="companies"
+        onImportComplete={(count) => {
+          useCRM.getState().initialize?.() || useCRM.getState().refresh?.();
+          setShowImport(false);
+        }}
+      />
     </div>
   );
 }

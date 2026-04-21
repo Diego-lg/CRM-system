@@ -10,9 +10,14 @@ import {
   Edit2,
   Trash2,
   CheckCircle,
+  Download,
+  Upload,
 } from "lucide-react";
 import Modal from "../components/Modal";
+import ImportModal from "../components/ImportModal";
+import SavedViews from "../components/SavedViews";
 import useCRM from "../store/useCRM";
+import { exportActivities } from "../lib/csvExport";
 import clsx from "clsx";
 
 const TYPE_ICONS = {
@@ -65,8 +70,20 @@ export default function Activities() {
   const [filterType, setFilterType] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [filters, setFilters] = useState({});
+
+  const handleExport = () => {
+    const dataToExport =
+      filtered && filtered.length > 0 ? filtered : activities || [];
+    exportActivities(dataToExport, "activities");
+  };
+
+  const handleSaveView = (name, filterValues) => {
+    console.log("Saved view:", name, filterValues);
+  };
 
   const filtered = useMemo(() => {
     return activities
@@ -244,9 +261,35 @@ export default function Activities() {
             {filtered.length} activities
           </p>
         </div>
-        <button onClick={openAdd} className="btn-primary">
-          <Plus size={16} /> Add Activity
-        </button>
+        <div className="flex items-center gap-3">
+          <SavedViews
+            entityType="activities"
+            currentFilters={{ search, filterType, filterStatus }}
+            onApplyView={(newFilters) => {
+              setSearch(newFilters.search || "");
+              setFilterType(newFilters.filterType || "");
+              setFilterStatus(newFilters.filterStatus || "");
+            }}
+            onSaveView={handleSaveView}
+          />
+          <button
+            onClick={() => setShowImport(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Upload size={16} />
+            Import
+          </button>
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Download size={16} />
+            Export
+          </button>
+          <button onClick={openAdd} className="btn-primary">
+            <Plus size={16} /> Add Activity
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -493,6 +536,16 @@ export default function Activities() {
           </div>
         </div>
       </Modal>
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        entityType="activities"
+        onImportComplete={(count) => {
+          useCRM.getState().initialize?.() || useCRM.getState().refresh?.();
+          setShowImport(false);
+        }}
+      />
     </div>
   );
 }

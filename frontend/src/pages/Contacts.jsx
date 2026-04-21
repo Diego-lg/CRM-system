@@ -11,9 +11,14 @@ import {
   Trash2,
   X,
   Users,
+  Download,
+  Upload,
 } from "lucide-react";
 import Modal from "../components/Modal";
+import ImportModal from "../components/ImportModal";
+import SavedViews from "../components/SavedViews";
 import useCRM from "../store/useCRM";
+import { exportContacts } from "../lib/csvExport";
 import clsx from "clsx";
 
 const STATUS_COLORS = {
@@ -54,11 +59,24 @@ export default function Contacts() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [sortBy, setSortBy] = useState("name");
   const [sortDir, setSortDir] = useState("asc");
   const [view, setView] = useState("table");
+  const [filters, setFilters] = useState({});
+
+  const handleExport = () => {
+    const dataToExport =
+      filtered && filtered.length > 0 ? filtered : allContacts || [];
+    exportContacts(dataToExport, "contacts");
+  };
+
+  const handleSaveView = (name, filterValues) => {
+    // Additional save logic if needed
+    console.log("Saved view:", name, filterValues);
+  };
 
   const companyMap = useMemo(
     () => Object.fromEntries(companies.map((c) => [c.id, c])),
@@ -143,6 +161,29 @@ export default function Contacts() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <SavedViews
+            entityType="contacts"
+            currentFilters={{ search, filterStatus }}
+            onApplyView={(newFilters) => {
+              setSearch(newFilters.search || "");
+              setFilterStatus(newFilters.filterStatus || "");
+            }}
+            onSaveView={handleSaveView}
+          />
+          <button
+            onClick={() => setShowImport(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Upload size={16} />
+            Import
+          </button>
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Download size={16} />
+            Export
+          </button>
           <div className="flex bg-gray-100 rounded-lg p-0.5">
             <button
               onClick={() => setView("table")}
@@ -520,6 +561,16 @@ export default function Contacts() {
           </div>
         </div>
       </Modal>
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        entityType="contacts"
+        onImportComplete={(count) => {
+          useCRM.getState().initialize?.() || useCRM.getState().refresh?.();
+          setShowImport(false);
+        }}
+      />
     </div>
   );
 }

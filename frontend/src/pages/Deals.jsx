@@ -8,9 +8,14 @@ import {
   Calendar,
   User,
   GripVertical,
+  Download,
+  Upload,
 } from "lucide-react";
 import Modal from "../components/Modal";
+import ImportModal from "../components/ImportModal";
+import SavedViews from "../components/SavedViews";
 import useCRM from "../store/useCRM";
+import { exportDeals } from "../lib/csvExport";
 import clsx from "clsx";
 
 const STAGES = [
@@ -55,10 +60,22 @@ export default function Deals() {
   const deleteDeal = useCRM((s) => s.deleteDeal);
 
   const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [draggedDeal, setDraggedDeal] = useState(null);
   const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState({});
+
+  const handleExport = () => {
+    const dataToExport =
+      filtered && filtered.length > 0 ? filtered : allDeals || [];
+    exportDeals(dataToExport, "deals");
+  };
+
+  const handleSaveView = (name, filterValues) => {
+    console.log("Saved view:", name, filterValues);
+  };
 
   const contactMap = useMemo(
     () => Object.fromEntries(contacts.map((c) => [c.id, c])),
@@ -176,6 +193,28 @@ export default function Deals() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <SavedViews
+            entityType="deals"
+            currentFilters={{ search }}
+            onApplyView={(newFilters) => {
+              setSearch(newFilters.search || "");
+            }}
+            onSaveView={handleSaveView}
+          />
+          <button
+            onClick={() => setShowImport(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Upload size={16} />
+            Import
+          </button>
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Download size={16} />
+            Export
+          </button>
           <div className="relative">
             <Search
               size={16}
@@ -468,6 +507,16 @@ export default function Deals() {
           </div>
         </div>
       </Modal>
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        entityType="deals"
+        onImportComplete={(count) => {
+          useCRM.getState().initialize?.() || useCRM.getState().refresh?.();
+          setShowImport(false);
+        }}
+      />
     </div>
   );
 }

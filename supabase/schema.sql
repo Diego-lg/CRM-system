@@ -294,43 +294,73 @@ ALTER TABLE pipeline_history ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for public access (for development)
 -- In production, you'd want more restrictive policies
+DROP POLICY IF EXISTS "Enable read access for all users" ON stores;
 CREATE POLICY "Enable read access for all users" ON stores FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable insert for all users" ON stores;
 CREATE POLICY "Enable insert for all users" ON stores FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable update for all users" ON stores;
 CREATE POLICY "Enable update for all users" ON stores FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Enable delete for all users" ON stores;
 CREATE POLICY "Enable delete for all users" ON stores FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS "Enable read access for all users" ON contacts;
 CREATE POLICY "Enable read access for all users" ON contacts FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable insert for all users" ON contacts;
 CREATE POLICY "Enable insert for all users" ON contacts FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable update for all users" ON contacts;
 CREATE POLICY "Enable update for all users" ON contacts FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Enable delete for all users" ON contacts;
 CREATE POLICY "Enable delete for all users" ON contacts FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS "Enable read access for all users" ON companies;
 CREATE POLICY "Enable read access for all users" ON companies FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable insert for all users" ON companies;
 CREATE POLICY "Enable insert for all users" ON companies FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable update for all users" ON companies;
 CREATE POLICY "Enable update for all users" ON companies FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Enable delete for all users" ON companies;
 CREATE POLICY "Enable delete for all users" ON companies FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS "Enable read access for all users" ON deals;
 CREATE POLICY "Enable read access for all users" ON deals FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable insert for all users" ON deals;
 CREATE POLICY "Enable insert for all users" ON deals FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable update for all users" ON deals;
 CREATE POLICY "Enable update for all users" ON deals FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Enable delete for all users" ON deals;
 CREATE POLICY "Enable delete for all users" ON deals FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS "Enable read access for all users" ON activities;
 CREATE POLICY "Enable read access for all users" ON activities FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable insert for all users" ON activities;
 CREATE POLICY "Enable insert for all users" ON activities FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable update for all users" ON activities;
 CREATE POLICY "Enable update for all users" ON activities FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Enable delete for all users" ON activities;
 CREATE POLICY "Enable delete for all users" ON activities FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS "Enable read access for all users" ON users;
 CREATE POLICY "Enable read access for all users" ON users FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable insert for all users" ON users;
 CREATE POLICY "Enable insert for all users" ON users FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable update for all users" ON users;
 CREATE POLICY "Enable update for all users" ON users FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Enable delete for all users" ON users;
 CREATE POLICY "Enable delete for all users" ON users FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS "Enable read access for all users" ON settings;
 CREATE POLICY "Enable read access for all users" ON settings FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable update for all users" ON settings;
 CREATE POLICY "Enable update for all users" ON settings FOR UPDATE USING (true);
 
+DROP POLICY IF EXISTS "Enable read access for all users" ON revenue_history;
 CREATE POLICY "Enable read access for all users" ON revenue_history FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable insert for all users" ON revenue_history;
 CREATE POLICY "Enable insert for all users" ON revenue_history FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Enable read access for all users" ON pipeline_history;
 CREATE POLICY "Enable read access for all users" ON pipeline_history FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable insert for all users" ON pipeline_history;
 CREATE POLICY "Enable insert for all users" ON pipeline_history FOR INSERT WITH CHECK (true);
 
 -- ============================================
@@ -352,12 +382,35 @@ CREATE INDEX IF NOT EXISTS idx_revenue_history_store_id ON revenue_history(store
 CREATE INDEX IF NOT EXISTS idx_pipeline_history_month ON pipeline_history(month);
 
 -- ============================================
--- ENABLE REALTIME
+-- ENABLE REALTIME (idempotent - safe to run multiple times)
 -- ============================================
-ALTER PUBLICATION supabase_realtime ADD TABLE deals;
-ALTER PUBLICATION supabase_realtime ADD TABLE contacts;
-ALTER PUBLICATION supabase_realtime ADD TABLE activities;
-ALTER PUBLICATION supabase_realtime ADD TABLE companies;
+DO $$
+DECLARE
+    pub_exists boolean;
+BEGIN
+    SELECT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') INTO pub_exists;
+    
+    IF NOT pub_exists THEN
+        CREATE PUBLICATION supabase_realtime;
+    END IF;
+END $$;
+
+-- Add tables to publication if not already added (idempotent)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'deals') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE deals;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'contacts') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE contacts;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'activities') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE activities;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'companies') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE companies;
+    END IF;
+END $$;
 
 -- ============================================
 -- FINISH
@@ -431,30 +484,41 @@ ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
 -- PROFILES RLS POLICIES
 -- Users can view and update their own profile
 -- ============================================
+DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
 CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
 CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- ============================================
 -- API KEYS RLS POLICIES
 -- Users can only manage their own API keys
 -- ============================================
+DROP POLICY IF EXISTS "Users can view own API keys" ON api_keys;
 CREATE POLICY "Users can view own API keys" ON api_keys FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert own API keys" ON api_keys;
 CREATE POLICY "Users can insert own API keys" ON api_keys FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update own API keys" ON api_keys;
 CREATE POLICY "Users can update own API keys" ON api_keys FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete own API keys" ON api_keys;
 CREATE POLICY "Users can delete own API keys" ON api_keys FOR DELETE USING (auth.uid() = user_id);
 
 -- ============================================
 -- EMAIL TEMPLATES RLS POLICIES
 -- Anyone can view templates, only admins can manage them
 -- ============================================
+DROP POLICY IF EXISTS "Anyone can view email templates" ON email_templates;
 CREATE POLICY "Anyone can view email templates" ON email_templates FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admins can manage email templates" ON email_templates;
 CREATE POLICY "Admins can manage email templates" ON email_templates FOR INSERT WITH CHECK (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
+DROP POLICY IF EXISTS "Admins can update email templates" ON email_templates;
 CREATE POLICY "Admins can update email templates" ON email_templates FOR UPDATE USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
+DROP POLICY IF EXISTS "Admins can delete email templates" ON email_templates;
 CREATE POLICY "Admins can delete email templates" ON email_templates FOR DELETE USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
@@ -488,3 +552,196 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ============================================
+-- PHASE 2: DATA MANAGEMENT & AUTOMATION
+-- ============================================
+
+-- ============================================
+-- WORKFLOWS TABLE
+-- Automated workflow definitions for CRM actions
+-- ============================================
+CREATE TABLE IF NOT EXISTS workflows (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    description TEXT,
+    trigger_type TEXT NOT NULL,
+    trigger_config JSONB,
+    actions JSONB NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- WORKFLOW_LOGS TABLE
+-- Execution logs for workflow runs
+-- ============================================
+CREATE TABLE IF NOT EXISTS workflow_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    workflow_id UUID REFERENCES workflows(id) ON DELETE CASCADE,
+    trigger_type TEXT,
+    triggered_by TEXT,
+    actions_run JSONB,
+    status TEXT DEFAULT 'success',
+    error_message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- SAVED_VIEWS TABLE
+-- User-defined saved views with filters and column preferences
+-- ============================================
+CREATE TABLE IF NOT EXISTS saved_views (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    filters JSONB NOT NULL,
+    columns JSONB,
+    sort_by TEXT,
+    sort_dir TEXT DEFAULT 'asc',
+    is_default BOOLEAN DEFAULT FALSE,
+    user_id UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- TASK_DEPENDENCIES TABLE
+-- Task dependency management for activities
+-- ============================================
+CREATE TABLE IF NOT EXISTS task_dependencies (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    task_id UUID REFERENCES activities(id) ON DELETE CASCADE,
+    depends_on_id UUID REFERENCES activities(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(task_id, depends_on_id)
+);
+
+-- ============================================
+-- ROW LEVEL SECURITY (RLS) FOR PHASE 2 TABLES
+-- ============================================
+
+-- Enable RLS on Phase 2 tables
+ALTER TABLE workflows ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workflow_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE saved_views ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_dependencies ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- WORKFLOWS RLS POLICIES
+-- Admin-only management (read/write for authenticated admins only)
+-- ============================================
+DROP POLICY IF EXISTS "Admins can view workflows" ON workflows;
+CREATE POLICY "Admins can view workflows" ON workflows FOR SELECT USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+DROP POLICY IF EXISTS "Admins can insert workflows" ON workflows;
+CREATE POLICY "Admins can insert workflows" ON workflows FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+DROP POLICY IF EXISTS "Admins can update workflows" ON workflows;
+CREATE POLICY "Admins can update workflows" ON workflows FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+DROP POLICY IF EXISTS "Admins can delete workflows" ON workflows;
+CREATE POLICY "Admins can delete workflows" ON workflows FOR DELETE USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- ============================================
+-- WORKFLOW_LOGS RLS POLICIES
+-- Public read for all, write for workflow owners
+-- ============================================
+DROP POLICY IF EXISTS "Anyone can view workflow logs" ON workflow_logs;
+CREATE POLICY "Anyone can view workflow logs" ON workflow_logs FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Workflow owners can insert workflow logs" ON workflow_logs;
+CREATE POLICY "Workflow owners can insert workflow logs" ON workflow_logs FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM workflows WHERE id = workflow_id AND created_by = auth.uid())
+);
+DROP POLICY IF EXISTS "Workflow owners can update workflow logs" ON workflow_logs;
+CREATE POLICY "Workflow owners can update workflow logs" ON workflow_logs FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM workflows WHERE id = workflow_id AND created_by = auth.uid())
+);
+DROP POLICY IF EXISTS "Workflow owners can delete workflow logs" ON workflow_logs;
+CREATE POLICY "Workflow owners can delete workflow logs" ON workflow_logs FOR DELETE USING (
+    EXISTS (SELECT 1 FROM workflows WHERE id = workflow_id AND created_by = auth.uid())
+);
+
+-- ============================================
+-- SAVED_VIEWS RLS POLICIES
+-- Users manage own views, can view shared/default
+-- ============================================
+DROP POLICY IF EXISTS "Users can view own saved views" ON saved_views;
+CREATE POLICY "Users can view own saved views" ON saved_views FOR SELECT USING (
+    user_id = auth.uid() OR is_default = TRUE
+);
+DROP POLICY IF EXISTS "Users can insert own saved views" ON saved_views;
+CREATE POLICY "Users can insert own saved views" ON saved_views FOR INSERT WITH CHECK (
+    auth.uid() = user_id
+);
+DROP POLICY IF EXISTS "Users can update own saved views" ON saved_views;
+CREATE POLICY "Users can update own saved views" ON saved_views FOR UPDATE USING (
+    auth.uid() = user_id
+);
+DROP POLICY IF EXISTS "Users can delete own saved views" ON saved_views;
+CREATE POLICY "Users can delete own saved views" ON saved_views FOR DELETE USING (
+    auth.uid() = user_id
+);
+
+-- ============================================
+-- TASK_DEPENDENCIES RLS POLICIES
+-- Users can manage their task dependencies
+-- ============================================
+DROP POLICY IF EXISTS "Users can view task dependencies for their tasks" ON task_dependencies;
+CREATE POLICY "Users can view task dependencies for their tasks" ON task_dependencies FOR SELECT USING (
+    EXISTS (
+        SELECT 1 FROM activities a
+        WHERE a.id = task_dependencies.task_id
+        AND (a.store_id IN (SELECT store_id FROM users WHERE id = auth.uid()) OR a.store_id IS NULL)
+    )
+);
+DROP POLICY IF EXISTS "Users can insert task dependencies for their tasks" ON task_dependencies;
+CREATE POLICY "Users can insert task dependencies for their tasks" ON task_dependencies FOR INSERT WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM activities a
+        WHERE a.id = task_dependencies.task_id
+        AND (a.store_id IN (SELECT store_id FROM users WHERE id = auth.uid()) OR a.store_id IS NULL)
+    )
+);
+DROP POLICY IF EXISTS "Users can update task dependencies for their tasks" ON task_dependencies;
+CREATE POLICY "Users can update task dependencies for their tasks" ON task_dependencies FOR UPDATE USING (
+    EXISTS (
+        SELECT 1 FROM activities a
+        WHERE a.id = task_dependencies.task_id
+        AND (a.store_id IN (SELECT store_id FROM users WHERE id = auth.uid()) OR a.store_id IS NULL)
+    )
+);
+DROP POLICY IF EXISTS "Users can delete task dependencies for their tasks" ON task_dependencies;
+CREATE POLICY "Users can delete task dependencies for their tasks" ON task_dependencies FOR DELETE USING (
+    EXISTS (
+        SELECT 1 FROM activities a
+        WHERE a.id = task_dependencies.task_id
+        AND (a.store_id IN (SELECT store_id FROM users WHERE id = auth.uid()) OR a.store_id IS NULL)
+    )
+);
+
+-- ============================================
+-- INDEXES FOR PHASE 2 TABLES
+-- ============================================
+CREATE INDEX IF NOT EXISTS idx_workflows_created_by ON workflows(created_by);
+CREATE INDEX IF NOT EXISTS idx_workflows_trigger_type ON workflows(trigger_type);
+CREATE INDEX IF NOT EXISTS idx_workflows_is_active ON workflows(is_active);
+CREATE INDEX IF NOT EXISTS idx_workflow_logs_workflow_id ON workflow_logs(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_logs_status ON workflow_logs(status);
+CREATE INDEX IF NOT EXISTS idx_workflow_logs_created_at ON workflow_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_saved_views_user_id ON saved_views(user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_views_entity_type ON saved_views(entity_type);
+CREATE INDEX IF NOT EXISTS idx_saved_views_is_default ON saved_views(is_default);
+CREATE INDEX IF NOT EXISTS idx_task_dependencies_task_id ON task_dependencies(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on_id ON task_dependencies(depends_on_id);
+
+-- ============================================
+-- PHASE 2 COMPLETE
+-- ============================================
