@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Menu, Search, Bell, Plus, LogOut, Sun, Moon } from "lucide-react";
+import { Menu, Search, Plus, LogOut, Sun, Moon } from "lucide-react";
 import useCRM from "../store/useCRM";
 import { useTheme } from "../context/ThemeContext";
+import NotificationBell from "./NotificationBell";
+import { search } from "../lib/ai/smartSearch";
 
 const PAGE_NAMES = {
   "/dashboard": "Dashboard",
@@ -22,7 +24,6 @@ export default function Header({ sidebarOpen, setSidebarOpen }) {
   const [showSearch, setShowSearch] = useState(false);
   const contacts = useCRM((s) => s.contacts);
   const companies = useCRM((s) => s.companies);
-  const activities = useCRM((s) => s.activities);
   const mode = useCRM((s) => s.mode);
   const setMode = useCRM((s) => s.setMode);
   const user = useCRM((s) => s.user);
@@ -37,26 +38,15 @@ export default function Header({ sidebarOpen, setSidebarOpen }) {
 
   const title = PAGE_NAMES[location.pathname] || "CRM-system";
 
-  const pendingCount = activities.filter(
-    (a) => a.status !== "completed",
-  ).length;
+  // Smart AI search
+  const smartSearchResults = search.length > 1
+    ? search(search, contacts, companies, [])
+    : [];
 
-  const searchResults =
-    search.length > 1
-      ? [
-          ...contacts
-            .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
-            .slice(0, 3)
-            .map((c) => ({ ...c, type: "Contact", path: "/contacts" })),
-          ...companies
-            .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
-            .slice(0, 2)
-            .map((c) => ({ ...c, type: "Company", path: "/companies" })),
-        ]
-      : [];
+  const searchResults = smartSearchResults.slice(0, 8);
 
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4 z-10">
+    <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex items-center gap-4 z-10 safe-top">
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className="text-gray-500 hover:text-gray-900 transition-colors"
@@ -93,22 +83,38 @@ export default function Header({ sidebarOpen, setSidebarOpen }) {
                 className="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg w-72 focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
               {searchResults.length > 0 && (
-                <div className="absolute top-10 left-0 bg-white rounded-xl shadow-xl border border-gray-200 w-72 z-50 overflow-hidden">
+                <div className="absolute top-10 left-0 bg-white rounded-xl shadow-xl border border-gray-200 w-80 z-50 overflow-hidden">
+                  {/* Group by type */}
+                  <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Results</span>
+                  </div>
                   {searchResults.map((r, i) => (
                     <button
-                      key={i}
-                      onMouseDown={() => navigate(r.path)}
+                      key={`${r.type}-${r.id}`}
+                      onMouseDown={() => navigate(r.type === "contact" ? "/contacts" : r.type === "company" ? "/companies" : "/deals")}
                       className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-100 text-left"
                     >
                       <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-700">
-                        {r.avatar || r.name.slice(0, 2).toUpperCase()}
+                        {r.title ? r.title.slice(0, 2).toUpperCase() : "??"}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">
-                          {r.name}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {r.highlights && r.highlights.length > 0 ? (
+                            <>
+                              {r.highlights[0].context.split(r.highlights[0].match).map((part, idx, arr) => (
+                                <span key={idx}>
+                                  {part}
+                                  {idx < arr.length - 1 && (
+                                    <mark className="bg-yellow-200 text-gray-900">{r.highlights[0].match}</mark>
+                                  )}
+                                </span>
+                              ))}
+                            </>
+                          ) : r.title}
                         </p>
-                        <p className="text-xs text-gray-400">{r.type}</p>
+                        <p className="text-xs text-gray-400 capitalize">{r.type}</p>
                       </div>
+                      <span className="text-xs text-gray-400">{r.score}</span>
                     </button>
                   ))}
                 </div>
@@ -126,14 +132,7 @@ export default function Header({ sidebarOpen, setSidebarOpen }) {
       </div>
 
       {/* Notifications */}
-      <button className="relative text-gray-400 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-100">
-        <Bell size={20} />
-        {pendingCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-white text-xs flex items-center justify-center font-bold">
-            {pendingCount > 9 ? "9+" : pendingCount}
-          </span>
-        )}
-      </button>
+      <NotificationBell />
 
       {/* Dark Mode Toggle */}
       <button

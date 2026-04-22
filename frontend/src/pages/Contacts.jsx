@@ -17,6 +17,7 @@ import {
 import Modal from "../components/Modal";
 import ImportModal from "../components/ImportModal";
 import SavedViews from "../components/SavedViews";
+import ContactScoreBadge from "../components/ContactScoreBadge";
 import useCRM from "../store/useCRM";
 import { exportContacts } from "../lib/csvExport";
 import clsx from "clsx";
@@ -50,6 +51,7 @@ export default function Contacts() {
   const contacts = useCRM((s) => s.getFilteredContacts());
   const allContacts = useCRM((s) => s.contacts);
   const companies = useCRM((s) => s.companies);
+  const activities = useCRM((s) => s.activities);
   const stores = useCRM((s) => s.stores);
   const currentStoreId = useCRM((s) => s.currentStoreId);
   const addContact = useCRM((s) => s.addContact);
@@ -244,7 +246,7 @@ export default function Contacts() {
       {/* Table View */}
       {view === "table" && (
         <div className="card p-0 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto -mx-4 px-4">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -320,17 +322,11 @@ export default function Contacts() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gray-900 rounded-full"
-                            style={{ width: `${c.score}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-medium text-gray-700 w-7">
-                          {c.score}
-                        </span>
-                      </div>
+                      <ContactScoreBadge
+                        contact={c}
+                        company={companyMap[c.company]}
+                        activities={activities.filter(a => a.contact === c.id || a.contact === c.name)}
+                      />
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">
                       {c.lastContact}

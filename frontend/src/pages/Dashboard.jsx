@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AreaChart,
@@ -26,7 +26,9 @@ import {
   Target,
 } from "lucide-react";
 import StatsCard from "../components/StatsCard";
+import AIRecommendations from "../components/AIRecommendations";
 import useCRM from "../store/useCRM";
+import { generateRecommendations } from "../lib/ai/recommendationEngine";
 
 const STAGE_COLORS = {
   new: "#404040",
@@ -64,6 +66,71 @@ export default function Dashboard() {
   const pipelineHistory = useCRM((s) => s.pipelineHistory);
   const stores = useCRM((s) => s.stores);
   const currentStoreId = useCRM((s) => s.currentStoreId);
+  const addActivity = useCRM((s) => s.addActivity);
+
+  const [recommendations, setRecommendations] = useState([]);
+  const [dismissedIds, setDismissedIds] = useState(new Set());
+
+  // Generate recommendations on mount
+  useEffect(() => {
+    const recs = generateRecommendations(deals, contacts, activities);
+    setRecommendations(recs);
+  }, [deals, contacts, activities]);
+
+  // Handle taking action on a recommendation
+  const handleTakeAction = (recommendation) => {
+    // Create a follow-up activity based on the recommendation
+    if (recommendation.type === "contact_reengage" || recommendation.type === "churn_risk") {
+      const contact = contacts.find(c => c.id === recommendation.contactId);
+      if (contact) {
+        addActivity({
+          type: "call",
+          title: `Follow up with ${contact.name}`,
+          contact: contact.name,
+          contactId: contact.id,
+          company: contact.company,
+          date: new Date().toISOString().split("T")[0],
+          status: "pending",
+          priority: recommendation.priority === "high" ? "high" : "medium",
+          storeId: currentStoreId || "",
+        });
+      }
+    } else if (recommendation.type === "deal_upsell") {
+      const deal = deals.find(d => d.id === recommendation.dealId);
+      if (deal) {
+        addActivity({
+          type: "meeting",
+          title: `Upsell opportunity: ${deal.title}`,
+          contact: deal.contact,
+          contactId: deal.contact,
+          company: deal.company,
+          date: new Date().toISOString().split("T")[0],
+          status: "pending",
+          priority: recommendation.priority === "high" ? "high" : "medium",
+          storeId: currentStoreId || "",
+        });
+      }
+    } else if (recommendation.type === "next_action") {
+      addActivity({
+        type: "task",
+        title: recommendation.title,
+        date: new Date().toISOString().split("T")[0],
+        status: "pending",
+        priority: recommendation.priority === "high" ? "high" : "medium",
+        storeId: currentStoreId || "",
+      });
+    }
+    // Dismiss after taking action
+    setDismissedIds(prev => new Set([...prev, recommendation.id]));
+  };
+
+  // Handle dismissing a recommendation
+  const handleDismiss = (id) => {
+    setDismissedIds(prev => new Set([...prev, id]));
+  };
+
+  // Filter out dismissed recommendations
+  const visibleRecommendations = recommendations.filter(r => !dismissedIds.has(r.id));
 
   const dealsByStage = (stats) => {
     const stages = [
@@ -417,6 +484,15 @@ export default function Dashboard() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* AI Recommendations Panel */}
+      <div className="card">
+        <AIRecommendations
+          recommendations={visibleRecommendations}
+          onTakeAction={handleTakeAction}
+          onDismiss={handleDismiss}
+        />
       </div>
     </div>
   );

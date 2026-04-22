@@ -118,3 +118,48 @@
 .slide-right {
   animation: slideRight 0.2s ease-out;
 }
+
+/* ============================================
+   MOBILE CSS UTILITIES
+   ============================================ */
+
+/* Touch target sizing (44px minimum for iOS) */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Safe area padding for notched devices */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Hide scrollbars on mobile */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile bottom navigation */
+.mobile-nav {
+  @apply fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 safe-bottom;
+}
+
+/* Horizontal swipe container with touch momentum */
+.swipe-container {
+  @apply overflow-x-auto scrollbar-hide;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+}
+
+.swipe-container > * {
+  scroll-snap-align: start;
+}

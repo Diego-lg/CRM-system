@@ -49,12 +49,20 @@ export default function Sidebar({ open, setOpen }) {
   };
 
   return (
-    <aside
-      className={clsx(
-        "flex flex-col bg-gray-900 text-white transition-all duration-300 flex-shrink-0 overflow-hidden",
-        open ? "w-64" : "w-16",
-      )}
-    >
+    <>
+      {/* Mobile overlay backdrop */}
+      <div 
+        className={`fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={() => setOpen(false)}
+      />
+      <aside
+        className={clsx(
+          "flex flex-col bg-gray-900 text-white transition-all duration-300 flex-shrink-0 overflow-hidden fixed inset-y-0 left-0 z-50 lg:relative lg:inset-auto lg:z-auto lg:block",
+          "transform lg:transform-none",
+          open ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+          open ? "w-64" : "w-64 lg:w-16",
+        )}
+      >
       {/* Logo */}
       <div className="flex items-center justify-between px-4 py-4 border-b border-gray-700">
         {open && (
@@ -225,5 +233,6 @@ export default function Sidebar({ open, setOpen }) {
         </div>
       )}
     </aside>
+    </>
   );
 }

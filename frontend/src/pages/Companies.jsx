@@ -176,7 +176,7 @@ export default function Companies() {
       </div>
 
       <div className="card p-0 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-4 px-4">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>

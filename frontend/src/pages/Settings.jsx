@@ -11,9 +11,12 @@ import {
   Trash2,
   Shield,
   Check,
+  Calendar,
+  Bot,
 } from "lucide-react";
 import useCRM from "../store/useCRM";
 import clsx from "clsx";
+import CalendarSync from "../components/CalendarSync";
 
 const TABS = [
   { id: "company", label: "Company", icon: Building },
@@ -21,6 +24,8 @@ const TABS = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "customization", label: "Customization", icon: Palette },
   { id: "pipeline", label: "Pipeline Stages", icon: Sliders },
+  { id: "calendar", label: "Calendar Sync", icon: Calendar },
+  { id: "ai", label: "AI Settings", icon: Bot },
 ];
 
 const ROLE_COLORS = {
@@ -61,6 +66,13 @@ export default function Settings() {
     role: "Sales Rep",
   });
   const [saved, setSaved] = useState(false);
+  const [aiSettings, setAiSettings] = useState({
+    enabled: true,
+    contactScoring: true,
+    dealPrediction: true,
+    autoTag: true,
+    recommendations: true,
+  });
 
   const handleSave = () => {
     updateSettings({
@@ -509,6 +521,137 @@ export default function Settings() {
           <p className="text-xs text-gray-400">
             Contact statuses: {settings.contactStatuses.join(", ")}
           </p>
+        </div>
+      )}
+
+      {/* Calendar Sync */}
+      {tab === "calendar" && (
+        <div className="card space-y-4 fade-in">
+          <CalendarSync />
+        </div>
+      )}
+
+      {/* AI Settings */}
+      {tab === "ai" && (
+        <div className="card space-y-4 fade-in">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <Bot size={18} /> AI Features Configuration
+          </h3>
+          <p className="text-sm text-gray-500">
+            Configure which AI features are enabled in your CRM. AI features help analyze contacts, predict deal outcomes, and provide smart recommendations.
+          </p>
+
+          {/* Master toggle */}
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Enable AI Features</p>
+              <p className="text-xs text-gray-400">Master switch for all AI-powered features</p>
+            </div>
+            <button
+              onClick={() => setAiSettings({ ...aiSettings, enabled: !aiSettings.enabled })}
+              className={clsx(
+                "relative w-11 h-6 rounded-full transition-colors flex-shrink-0",
+                aiSettings.enabled ? "bg-gray-900" : "bg-gray-200",
+              )}
+            >
+              <span
+                className={clsx(
+                  "absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                  aiSettings.enabled ? "translate-x-6" : "translate-x-1",
+                )}
+              />
+            </button>
+          </div>
+
+          {/* Individual feature toggles */}
+          <div className="space-y-3">
+            {[
+              {
+                key: "contactScoring",
+                label: "Contact Scoring",
+                desc: "AI-powered contact engagement scoring with breakdown analysis",
+                model: "contact_score",
+              },
+              {
+                key: "dealPrediction",
+                label: "Deal Predictions",
+                desc: "Predict deal outcomes and estimated close dates",
+                model: "deal_prediction",
+              },
+              {
+                key: "autoTag",
+                label: "Smart Auto-Tag",
+                desc: "Automatically suggest and apply tags based on content",
+                model: "auto_tag",
+              },
+              {
+                key: "recommendations",
+                label: "AI Recommendations",
+                desc: "Get actionable recommendations for contacts and deals",
+                model: "recommendations",
+              },
+            ].map(({ key, label, desc, model }) => (
+              <div
+                key={key}
+                className={clsx(
+                  "flex items-center justify-between p-4 rounded-lg border",
+                  aiSettings.enabled ? "bg-white border-gray-200" : "bg-gray-50 border-gray-100",
+                )}
+              >
+                <div>
+                  <p className={clsx("text-sm font-medium", aiSettings.enabled ? "text-gray-800" : "text-gray-400")}>
+                    {label}
+                  </p>
+                  <p className="text-xs text-gray-400">{desc}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={clsx(
+                    "px-2 py-1 rounded text-xs font-medium",
+                    aiSettings.enabled ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400",
+                  )}>
+                    {aiSettings.enabled ? "Active" : "Disabled"}
+                  </span>
+                  <button
+                    onClick={() => aiSettings.enabled && setAiSettings({ ...aiSettings, [key]: !aiSettings[key] })}
+                    disabled={!aiSettings.enabled}
+                    className={clsx(
+                      "relative w-11 h-6 rounded-full transition-colors flex-shrink-0",
+                      aiSettings[key] && aiSettings.enabled ? "bg-gray-900" : "bg-gray-200",
+                      !aiSettings.enabled && "opacity-50 cursor-not-allowed",
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        "absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                        aiSettings[key] && aiSettings.enabled ? "translate-x-6" : "translate-x-1",
+                      )}
+                    />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Model Status */}
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">Model Status</h4>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { name: "Contact Scoring", status: aiSettings.enabled && aiSettings.contactScoring ? "operational" : "disabled" },
+                { name: "Deal Prediction", status: aiSettings.enabled && aiSettings.dealPrediction ? "operational" : "disabled" },
+                { name: "Auto Tag", status: aiSettings.enabled && aiSettings.autoTag ? "operational" : "disabled" },
+                { name: "Recommendations", status: aiSettings.enabled && aiSettings.recommendations ? "operational" : "disabled" },
+              ].map((model) => (
+                <div key={model.name} className="flex items-center gap-2">
+                  <div className={clsx(
+                    "w-2 h-2 rounded-full",
+                    model.status === "operational" ? "bg-green-500" : "bg-gray-300",
+                  )} />
+                  <span className="text-sm text-gray-600">{model.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>

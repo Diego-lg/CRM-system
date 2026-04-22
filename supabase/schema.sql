@@ -743,5 +743,526 @@ CREATE INDEX IF NOT EXISTS idx_task_dependencies_task_id ON task_dependencies(ta
 CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on_id ON task_dependencies(depends_on_id);
 
 -- ============================================
--- PHASE 2 COMPLETE
+-- PHASE 3: COMMUNICATION & COLLABORATION
 -- ============================================
+
+-- ============================================
+-- EMAILS TABLE
+-- Email messages for CRM communications
+-- ============================================
+CREATE TABLE IF NOT EXISTS emails (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    contact_id UUID REFERENCES contacts(id) ON DELETE SET NULL,
+    company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+    from_address TEXT NOT NULL,
+    to_address TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body TEXT,
+    sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    read BOOLEAN DEFAULT FALSE,
+    archived BOOLEAN DEFAULT FALSE,
+    created_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- EMAIL_ATTACHMENTS TABLE
+-- File attachments for emails
+-- ============================================
+CREATE TABLE IF NOT EXISTS email_attachments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email_id UUID REFERENCES emails(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    url TEXT NOT NULL,
+    file_size INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- EMAIL_SYNC TABLE
+-- Email provider sync configuration
+-- ============================================
+CREATE TABLE IF NOT EXISTS email_sync (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    access_token TEXT,
+    refresh_token TEXT,
+    token_expires_at TIMESTAMP WITH TIME ZONE,
+    last_sync TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- CALENDAR_EVENTS TABLE
+-- Calendar events for activities and tasks
+-- ============================================
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title TEXT NOT NULL,
+    description TEXT,
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE,
+    location TEXT,
+    color TEXT DEFAULT '#4f46e5',
+    linked_entity_type TEXT CHECK (linked_entity_type IN ('contact', 'company', 'deal')),
+    linked_entity_id UUID,
+    created_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- NOTIFICATIONS TABLE
+-- User notifications for CRM events
+-- ============================================
+CREATE TABLE IF NOT EXISTS notifications (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT,
+    read BOOLEAN DEFAULT FALSE,
+    link_to TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- COMMENTS TABLE
+-- Threaded comments for entities
+-- ============================================
+CREATE TABLE IF NOT EXISTS comments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('contact', 'company', 'deal', 'activity')),
+    entity_id UUID NOT NULL,
+    parent_comment_id UUID REFERENCES comments(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- ROW LEVEL SECURITY (RLS) FOR PHASE 3 TABLES
+-- ============================================
+
+-- Enable RLS on Phase 3 tables
+ALTER TABLE emails ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_attachments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_sync ENABLE ROW LEVEL SECURITY;
+ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- EMAILS RLS POLICIES
+-- Users manage their own emails
+-- ============================================
+DROP POLICY IF EXISTS "Users can view own emails" ON emails;
+CREATE POLICY "Users can view own emails" ON emails FOR SELECT USING (auth.uid() = created_by);
+DROP POLICY IF EXISTS "Users can insert own emails" ON emails;
+CREATE POLICY "Users can insert own emails" ON emails FOR INSERT WITH CHECK (auth.uid() = created_by);
+DROP POLICY IF EXISTS "Users can update own emails" ON emails;
+CREATE POLICY "Users can update own emails" ON emails FOR UPDATE USING (auth.uid() = created_by);
+DROP POLICY IF EXISTS "Users can delete own emails" ON emails;
+CREATE POLICY "Users can delete own emails" ON emails FOR DELETE USING (auth.uid() = created_by);
+
+-- ============================================
+-- EMAIL_ATTACHMENTS RLS POLICIES
+-- Access through parent email
+-- ============================================
+DROP POLICY IF EXISTS "Users can view email attachments" ON email_attachments;
+CREATE POLICY "Users can view email attachments" ON email_attachments FOR SELECT USING (
+    EXISTS (SELECT 1 FROM emails WHERE emails.id = email_attachments.email_id AND emails.created_by = auth.uid())
+);
+DROP POLICY IF EXISTS "Users can insert email attachments" ON email_attachments;
+CREATE POLICY "Users can insert email attachments" ON email_attachments FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM emails WHERE emails.id = email_attachments.email_id AND emails.created_by = auth.uid())
+);
+DROP POLICY IF EXISTS "Users can delete email attachments" ON email_attachments;
+CREATE POLICY "Users can delete email attachments" ON email_attachments FOR DELETE USING (
+    EXISTS (SELECT 1 FROM emails WHERE emails.id = email_attachments.email_id AND emails.created_by = auth.uid())
+);
+
+-- ============================================
+-- EMAIL_SYNC RLS POLICIES
+-- Users manage their own email sync
+-- ============================================
+DROP POLICY IF EXISTS "Users can view own email sync" ON email_sync;
+CREATE POLICY "Users can view own email sync" ON email_sync FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert own email sync" ON email_sync;
+CREATE POLICY "Users can insert own email sync" ON email_sync FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update own email sync" ON email_sync;
+CREATE POLICY "Users can update own email sync" ON email_sync FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete own email sync" ON email_sync;
+CREATE POLICY "Users can delete own email sync" ON email_sync FOR DELETE USING (auth.uid() = user_id);
+
+-- ============================================
+-- CALENDAR_EVENTS RLS POLICIES
+-- Users manage their own events
+-- ============================================
+DROP POLICY IF EXISTS "Users can view own calendar events" ON calendar_events;
+CREATE POLICY "Users can view own calendar events" ON calendar_events FOR SELECT USING (auth.uid() = created_by);
+DROP POLICY IF EXISTS "Users can insert own calendar events" ON calendar_events;
+CREATE POLICY "Users can insert own calendar events" ON calendar_events FOR INSERT WITH CHECK (auth.uid() = created_by);
+DROP POLICY IF EXISTS "Users can update own calendar events" ON calendar_events;
+CREATE POLICY "Users can update own calendar events" ON calendar_events FOR UPDATE USING (auth.uid() = created_by);
+DROP POLICY IF EXISTS "Users can delete own calendar events" ON calendar_events;
+CREATE POLICY "Users can delete own calendar events" ON calendar_events FOR DELETE USING (auth.uid() = created_by);
+
+-- ============================================
+-- NOTIFICATIONS RLS POLICIES
+-- Users manage their own notifications
+-- ============================================
+DROP POLICY IF EXISTS "Users can view own notifications" ON notifications;
+CREATE POLICY "Users can view own notifications" ON notifications FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert own notifications" ON notifications;
+CREATE POLICY "Users can insert own notifications" ON notifications FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update own notifications" ON notifications;
+CREATE POLICY "Users can update own notifications" ON notifications FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete own notifications" ON notifications;
+CREATE POLICY "Users can delete own notifications" ON notifications FOR DELETE USING (auth.uid() = user_id);
+
+-- ============================================
+-- COMMENTS RLS POLICIES
+-- Users manage their own comments
+-- ============================================
+DROP POLICY IF EXISTS "Users can view comments for accessible entities" ON comments;
+CREATE POLICY "Users can view comments for accessible entities" ON comments FOR SELECT USING (
+    auth.uid() = created_by OR
+    (entity_type = 'contact' AND EXISTS (SELECT 1 FROM contacts WHERE contacts.id = comments.entity_id)) OR
+    (entity_type = 'company' AND EXISTS (SELECT 1 FROM companies WHERE companies.id = comments.entity_id)) OR
+    (entity_type = 'deal' AND EXISTS (SELECT 1 FROM deals WHERE deals.id = comments.entity_id))
+);
+DROP POLICY IF EXISTS "Users can insert comments" ON comments;
+CREATE POLICY "Users can insert comments" ON comments FOR INSERT WITH CHECK (auth.uid() = created_by);
+DROP POLICY IF EXISTS "Users can update own comments" ON comments;
+CREATE POLICY "Users can update own comments" ON comments FOR UPDATE USING (auth.uid() = created_by);
+DROP POLICY IF EXISTS "Users can delete own comments" ON comments;
+CREATE POLICY "Users can delete own comments" ON comments FOR DELETE USING (auth.uid() = created_by);
+
+-- ============================================
+-- INDEXES FOR PHASE 3 TABLES
+-- ============================================
+CREATE INDEX IF NOT EXISTS idx_emails_contact_id ON emails(contact_id);
+CREATE INDEX IF NOT EXISTS idx_emails_company_id ON emails(company_id);
+CREATE INDEX IF NOT EXISTS idx_emails_created_by ON emails(created_by);
+CREATE INDEX IF NOT EXISTS idx_emails_sent_at ON emails(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_emails_read ON emails(read);
+CREATE INDEX IF NOT EXISTS idx_email_attachments_email_id ON email_attachments(email_id);
+CREATE INDEX IF NOT EXISTS idx_email_sync_user_id ON email_sync(user_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_created_by ON calendar_events(created_by);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_start_time ON calendar_events(start_time);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_linked_entity ON calendar_events(linked_entity_type, linked_entity_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_comments_entity ON comments(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_comment_id);
+CREATE INDEX IF NOT EXISTS idx_comments_created_by ON comments(created_by);
+
+-- ============================================
+-- PHASE 3 COMPLETE
+-- ============================================
+
+-- ============================================
+-- PHASE 4: ADVANCED ANALYTICS & MOBILE
+-- ============================================
+
+-- ============================================
+-- REPORTS TABLE
+-- Custom report definitions for CRM analytics
+-- ============================================
+CREATE TABLE IF NOT EXISTS reports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('contacts', 'companies', 'deals', 'activities', 'revenue')),
+    columns JSONB NOT NULL DEFAULT '[]',
+    filters JSONB NOT NULL DEFAULT '{}',
+    grouping TEXT,
+    date_range JSONB,
+    aggregations JSONB NOT NULL DEFAULT '{}',
+    schedule JSONB,
+    is_public BOOLEAN DEFAULT FALSE,
+    user_id UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- REPORT_EXPORTS TABLE
+-- Export history for reports
+-- ============================================
+CREATE TABLE IF NOT EXISTS report_exports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    report_id UUID REFERENCES reports(id) ON DELETE CASCADE,
+    format TEXT NOT NULL CHECK (format IN ('csv', 'xlsx', 'pdf')),
+    file_path TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- DASHBOARD_LAYOUTS TABLE
+-- User-customizable dashboard widget layouts
+-- ============================================
+CREATE TABLE IF NOT EXISTS dashboard_layouts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES auth.users(id),
+    widgets JSONB NOT NULL DEFAULT '[]',
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- ROW LEVEL SECURITY (RLS) FOR PHASE 4 TABLES
+-- ============================================
+
+-- Enable RLS on Phase 4 tables
+ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE report_exports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dashboard_layouts ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- REPORTS RLS POLICIES
+-- Users manage own reports, public reports viewable by all
+-- ============================================
+DROP POLICY IF EXISTS "Users can view own reports" ON reports;
+CREATE POLICY "Users can view own reports" ON reports FOR SELECT USING (
+    user_id = auth.uid() OR is_public = TRUE
+);
+DROP POLICY IF EXISTS "Users can insert own reports" ON reports;
+CREATE POLICY "Users can insert own reports" ON reports FOR INSERT WITH CHECK (
+    auth.uid() = user_id
+);
+DROP POLICY IF EXISTS "Users can update own reports" ON reports;
+CREATE POLICY "Users can update own reports" ON reports FOR UPDATE USING (
+    auth.uid() = user_id
+);
+DROP POLICY IF EXISTS "Users can delete own reports" ON reports;
+CREATE POLICY "Users can delete own reports" ON reports FOR DELETE USING (
+    auth.uid() = user_id
+);
+
+-- ============================================
+-- REPORT_EXPORTS RLS POLICIES
+-- Users manage exports of their own reports
+-- ============================================
+DROP POLICY IF EXISTS "Users can view own report exports" ON report_exports;
+CREATE POLICY "Users can view own report exports" ON report_exports FOR SELECT USING (
+    EXISTS (SELECT 1 FROM reports WHERE reports.id = report_exports.report_id AND reports.user_id = auth.uid())
+);
+DROP POLICY IF EXISTS "Users can insert own report exports" ON report_exports;
+CREATE POLICY "Users can insert own report exports" ON report_exports FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM reports WHERE reports.id = report_exports.report_id AND reports.user_id = auth.uid())
+);
+DROP POLICY IF EXISTS "Users can delete own report exports" ON report_exports;
+CREATE POLICY "Users can delete own report exports" ON report_exports FOR DELETE USING (
+    EXISTS (SELECT 1 FROM reports WHERE reports.id = report_exports.report_id AND reports.user_id = auth.uid())
+);
+
+-- ============================================
+-- DASHBOARD_LAYOUTS RLS POLICIES
+-- Users manage their own layouts, can view shared defaults
+-- ============================================
+DROP POLICY IF EXISTS "Users can view own dashboard layouts" ON dashboard_layouts;
+CREATE POLICY "Users can view own dashboard layouts" ON dashboard_layouts FOR SELECT USING (
+    user_id = auth.uid() OR is_default = TRUE
+);
+DROP POLICY IF EXISTS "Users can insert own dashboard layouts" ON dashboard_layouts;
+CREATE POLICY "Users can insert own dashboard layouts" ON dashboard_layouts FOR INSERT WITH CHECK (
+    auth.uid() = user_id
+);
+DROP POLICY IF EXISTS "Users can update own dashboard layouts" ON dashboard_layouts;
+CREATE POLICY "Users can update own dashboard layouts" ON dashboard_layouts FOR UPDATE USING (
+    auth.uid() = user_id
+);
+DROP POLICY IF EXISTS "Users can delete own dashboard layouts" ON dashboard_layouts;
+CREATE POLICY "Users can delete own dashboard layouts" ON dashboard_layouts FOR DELETE USING (
+    auth.uid() = user_id
+);
+
+-- ============================================
+-- INDEXES FOR PHASE 4 TABLES
+-- ============================================
+CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id);
+CREATE INDEX IF NOT EXISTS idx_reports_type ON reports(type);
+CREATE INDEX IF NOT EXISTS idx_reports_is_public ON reports(is_public);
+CREATE INDEX IF NOT EXISTS idx_report_exports_report_id ON report_exports(report_id);
+CREATE INDEX IF NOT EXISTS idx_report_exports_format ON report_exports(format);
+CREATE INDEX IF NOT EXISTS idx_report_exports_created_at ON report_exports(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_user_id ON dashboard_layouts(user_id);
+CREATE INDEX IF NOT EXISTS idx_dashboard_layouts_is_default ON dashboard_layouts(is_default);
+
+-- ============================================
+-- PHASE 4 COMPLETE
+-- ============================================
+
+-- ============================================
+-- PHASE 5: AI/ML FEATURES
+-- ============================================
+
+-- ============================================
+-- AI_MODELS TABLE
+-- AI model configurations for CRM intelligence
+-- ============================================
+CREATE TABLE IF NOT EXISTS ai_models (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL CHECK (name IN ('contact_score', 'deal_prediction', 'auto_tag')),
+    config JSONB NOT NULL DEFAULT '{}',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- CONTACT_SCORE_HISTORY TABLE
+-- Historical contact scoring records for trend analysis
+-- ============================================
+CREATE TABLE IF NOT EXISTS contact_score_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    contact_id UUID REFERENCES contacts(id) ON DELETE CASCADE,
+    score INTEGER NOT NULL CHECK (score >= 0 AND score <= 100),
+    factors JSONB NOT NULL DEFAULT '{}',
+    calculated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- DEAL_PREDICTIONS TABLE
+-- AI-predicted deal outcomes
+-- ============================================
+CREATE TABLE IF NOT EXISTS deal_predictions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    deal_id UUID REFERENCES deals(id) ON DELETE CASCADE,
+    predicted_outcome TEXT NOT NULL CHECK (predicted_outcome IN ('won', 'lost', 'probability')),
+    predicted_close_date DATE,
+    predicted_value INTEGER,
+    confidence INTEGER NOT NULL CHECK (confidence >= 0 AND confidence <= 100),
+    factors JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- AI_RECOMMENDATIONS TABLE
+-- Actionable AI-driven recommendations for users
+-- ============================================
+CREATE TABLE IF NOT EXISTS ai_recommendations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    type TEXT NOT NULL CHECK (type IN ('next_action', 'deal_upsell', 'contact_reengage', 'churn_risk')),
+    priority TEXT NOT NULL CHECK (priority IN ('high', 'medium', 'low')),
+    title TEXT NOT NULL,
+    description TEXT,
+    entity_type TEXT CHECK (entity_type IN ('contact', 'company', 'deal')),
+    entity_id UUID,
+    is_read BOOLEAN DEFAULT FALSE,
+    is_dismissed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- ROW LEVEL SECURITY (RLS) FOR PHASE 5 TABLES
+-- ============================================
+
+-- Enable RLS on Phase 5 tables
+ALTER TABLE ai_models ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contact_score_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deal_predictions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_recommendations ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- AI_MODELS RLS POLICIES
+-- Admin-only for model management
+-- ============================================
+DROP POLICY IF EXISTS "Admins can view ai_models" ON ai_models;
+CREATE POLICY "Admins can view ai_models" ON ai_models FOR SELECT USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+DROP POLICY IF EXISTS "Admins can insert ai_models" ON ai_models;
+CREATE POLICY "Admins can insert ai_models" ON ai_models FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+DROP POLICY IF EXISTS "Admins can update ai_models" ON ai_models;
+CREATE POLICY "Admins can update ai_models" ON ai_models FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+DROP POLICY IF EXISTS "Admins can delete ai_models" ON ai_models;
+CREATE POLICY "Admins can delete ai_models" ON ai_models FOR DELETE USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- ============================================
+-- CONTACT_SCORE_HISTORY RLS POLICIES
+-- Users can view history for their contacts
+-- ============================================
+DROP POLICY IF EXISTS "Users can view contact score history" ON contact_score_history;
+CREATE POLICY "Users can view contact score history" ON contact_score_history FOR SELECT USING (
+    EXISTS (
+        SELECT 1 FROM contacts c
+        WHERE c.id = contact_score_history.contact_id
+        AND (c.store_id IN (SELECT store_id FROM users WHERE id = auth.uid()) OR c.store_id IS NULL)
+    )
+);
+DROP POLICY IF EXISTS "System can insert contact score history" ON contact_score_history;
+CREATE POLICY "System can insert contact score history" ON contact_score_history FOR INSERT WITH CHECK (true);
+
+-- ============================================
+-- DEAL_PREDICTIONS RLS POLICIES
+-- Users can view predictions for their deals
+-- ============================================
+DROP POLICY IF EXISTS "Users can view deal predictions" ON deal_predictions;
+CREATE POLICY "Users can view deal predictions" ON deal_predictions FOR SELECT USING (
+    EXISTS (
+        SELECT 1 FROM deals d
+        WHERE d.id = deal_predictions.deal_id
+        AND (d.store_id IN (SELECT store_id FROM users WHERE id = auth.uid()) OR d.store_id IS NULL)
+    )
+);
+DROP POLICY IF EXISTS "System can insert deal predictions" ON deal_predictions;
+CREATE POLICY "System can insert deal predictions" ON deal_predictions FOR INSERT WITH CHECK (true);
+
+-- ============================================
+-- AI_RECOMMENDATIONS RLS POLICIES
+-- Users can view and update own recommendations
+-- ============================================
+DROP POLICY IF EXISTS "Users can view own ai_recommendations" ON ai_recommendations;
+CREATE POLICY "Users can view own ai_recommendations" ON ai_recommendations FOR SELECT USING (true);
+DROP POLICY IF EXISTS "System can insert ai_recommendations" ON ai_recommendations;
+CREATE POLICY "System can insert ai_recommendations" ON ai_recommendations FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Users can update own ai_recommendations" ON ai_recommendations;
+CREATE POLICY "Users can update own ai_recommendations" ON ai_recommendations FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Users can dismiss own ai_recommendations" ON ai_recommendations;
+CREATE POLICY "Users can dismiss own ai_recommendations" ON ai_recommendations FOR DELETE USING (true);
+
+-- ============================================
+-- INDEXES FOR PHASE 5 TABLES
+-- ============================================
+CREATE INDEX IF NOT EXISTS idx_ai_models_name ON ai_models(name);
+CREATE INDEX IF NOT EXISTS idx_ai_models_is_active ON ai_models(is_active);
+CREATE INDEX IF NOT EXISTS idx_contact_score_history_contact_id ON contact_score_history(contact_id);
+CREATE INDEX IF NOT EXISTS idx_contact_score_history_calculated_at ON contact_score_history(calculated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_deal_predictions_deal_id ON deal_predictions(deal_id);
+CREATE INDEX IF NOT EXISTS idx_deal_predictions_created_at ON deal_predictions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_recommendations_type ON ai_recommendations(type);
+CREATE INDEX IF NOT EXISTS idx_ai_recommendations_priority ON ai_recommendations(priority);
+CREATE INDEX IF NOT EXISTS idx_ai_recommendations_entity ON ai_recommendations(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_ai_recommendations_is_read ON ai_recommendations(is_read);
+CREATE INDEX IF NOT EXISTS idx_ai_recommendations_is_dismissed ON ai_recommendations(is_dismissed);
+CREATE INDEX IF NOT EXISTS idx_ai_recommendations_created_at ON ai_recommendations(created_at DESC);
+
+-- ============================================
+-- INSERT DEFAULT AI MODEL CONFIGURATIONS
+-- ============================================
+INSERT INTO ai_models (name, config, is_active) VALUES
+    ('contact_score', '{"version": "1.0", "model_type": "gradient_boost", "features": ["engagement", "company_size", "behavior", "fit_score"]}', TRUE),
+    ('deal_prediction', '{"version": "1.0", "model_type": "random_forest", "features": ["deal_value", "stage", "contact_score", "days_to_close"]}', TRUE),
+    ('auto_tag', '{"version": "1.0", "model_type": "text_classification", "labels": ["hot_lead", "decision_maker", "technical", "champion"]}', TRUE)
+ON CONFLICT DO NOTHING;
+
+-- ============================================
+-- PHASE 5 COMPLETE
+-- ============================================
+
+SELECT 'CRM-system Database Schema - All Phases Complete!' as status;

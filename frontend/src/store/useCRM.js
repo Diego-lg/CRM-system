@@ -31,6 +31,18 @@ const getDemoUser = () => {
   return null;
 };
 
+// Helper to trigger notifications
+const triggerNotification = (type, title, message, linkTo) => {
+  if (window.NotificationContext?.addNotification) {
+    window.NotificationContext.addNotification({
+      type,
+      title,
+      message,
+      linkTo,
+    });
+  }
+};
+
 const useCRM = create((set, get) => ({
   // State
   mode: "demo", // 'demo' = use seed data, 'production' = use real database
@@ -259,6 +271,12 @@ const useCRM = create((set, get) => ({
     try {
       const newDeal = await dealsService.create(deal);
       set((s) => ({ deals: [...s.deals, newDeal] }));
+      triggerNotification(
+        "deal_created",
+        "New Deal Created",
+        `Deal "${newDeal.title}" has been created`,
+        "/deals",
+      );
       return newDeal;
     } catch (err) {
       console.error("Failed to create deal:", err);
@@ -290,6 +308,25 @@ const useCRM = create((set, get) => ({
           d.id === id ? { ...d, stage: newStage } : d,
         ),
       }));
+      const deal = get().deals.find((d) => d.id === id);
+      if (deal) {
+        const stageLabel = newStage.charAt(0).toUpperCase() + newStage.slice(1);
+        if (newStage === "won") {
+          triggerNotification(
+            "deal_won",
+            "Deal Won!",
+            `Congratulations! "${deal.title}" has been won!`,
+            "/deals",
+          );
+        } else if (newStage === "lost") {
+          triggerNotification(
+            "deal_lost",
+            "Deal Lost",
+            `Deal "${deal.title}" has been marked as lost`,
+            "/deals",
+          );
+        }
+      }
     } catch (err) {
       console.error("Failed to move deal:", err);
       set((s) => ({
@@ -402,6 +439,15 @@ const useCRM = create((set, get) => ({
           a.id === id ? { ...a, status: "completed" } : a,
         ),
       }));
+      const activity = get().activities.find((a) => a.id === id);
+      if (activity) {
+        triggerNotification(
+          "task_due",
+          "Activity Completed",
+          `"${activity.title}" has been marked as complete`,
+          "/activities",
+        );
+      }
     } catch (err) {
       console.error("Failed to complete activity:", err);
       set((s) => ({

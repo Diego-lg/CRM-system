@@ -175,7 +175,7 @@ export default function Analytics() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <StatsCard
           title="Total Revenue"
           value={stats.totalRevenue}
@@ -478,9 +478,9 @@ export default function Analytics() {
       </div>
 
       {/* Store Performance Table */}
-      <div className="card">
+      <div className="card overflow-x-auto">
         <h3 className="font-semibold text-gray-900 mb-4">Store Performance</h3>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-4 px-4">
           <table className="w-full">
             <thead>
               <tr className="text-left text-xs text-gray-500 uppercase tracking-wider">

@@ -14,6 +14,7 @@ import useCRM from "./store/useCRM";
 import { isSupabaseConfigured } from "./lib/supabase";
 import { hasPermission, ROLES } from "./lib/permissions";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { NotificationProvider } from "./context/NotificationContext";
 
 function LoadingScreen() {
   return (
@@ -258,7 +259,9 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <NotificationProvider>
+        <AppRoutes />
+      </NotificationProvider>
     </BrowserRouter>
   );
 }

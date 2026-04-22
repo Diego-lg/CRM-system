@@ -14,6 +14,7 @@ import {
 import Modal from "../components/Modal";
 import ImportModal from "../components/ImportModal";
 import SavedViews from "../components/SavedViews";
+import DealPredictionBadge from "../components/DealPredictionBadge";
 import useCRM from "../store/useCRM";
 import { exportDeals } from "../lib/csvExport";
 import clsx from "clsx";
@@ -235,7 +236,7 @@ export default function Deals() {
 
       {/* Kanban Board */}
       <div
-        className="flex gap-4 overflow-x-auto pb-6"
+        className="flex gap-4 overflow-x-auto pb-6 -mx-4 px-4 sm:mx-0 sm:px-0"
         style={{ minHeight: "calc(100vh - 240px)" }}
       >
         {STAGES.map((stage) => {
@@ -320,6 +321,17 @@ export default function Deals() {
                         </span>
                       )}
                     </div>
+                    {/* AI Prediction Badge - only for active deals */}
+                    {!["won", "lost"].includes(deal.stage) && (
+                      <div className="mt-2 pt-2 border-t border-gray-100">
+                        <DealPredictionBadge
+                          deal={deal}
+                          contact={contactMap[deal.contact]}
+                          company={companyMap[deal.company]}
+                          historicalDeals={allDeals}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
 
